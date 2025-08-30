@@ -1,62 +1,334 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
+  <meta charset="utf-8">
   <title>TruSight Bias Detection</title>
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: #0d0d0d;
-      color: #e0e0e0;
-      width: 320px;
-      padding: 15px;
-    }
-    h1 {
-      font-size: 18px;
-      margin: 0 0 10px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: #1a1a1a;
       color: #ffffff;
+      width: 400px;
+      overflow-x: hidden;
     }
-    #analyzeBtn {
-      background-color: #e63946;
-      border: none;
-      padding: 8px 12px;
-      color: white;
-      cursor: pointer;
-      border-radius: 6px;
-      font-size: 14px;
-      margin-bottom: 10px;
+
+    .container {
+      padding: 24px;
     }
-    #result {
-      background-color: #1a1a1a;
-      border-radius: 6px;
-      padding: 10px;
+
+    /* Clean, minimal header */
+    .header {
+      text-align: center;
+      margin-bottom: 32px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #333;
+    }
+
+    h1 {
+      font-size: 20px;
+      font-weight: 600;
+      margin: 0 0 4px 0;
+      color: #ffffff;
+      letter-spacing: -0.5px;
+    }
+
+    .subtitle {
       font-size: 13px;
-      line-height: 1.4;
-      white-space: normal;
-      word-wrap: break-word;
+      color: #888;
+      font-weight: 400;
     }
+
+    /* Minimal button design */
+    .analyze-btn {
+      background: #e63946;
+      color: #ffffff;
+      border: none;
+      padding: 14px 24px;
+      font-size: 14px;
+      font-weight: 500;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      width: 100%;
+      margin-bottom: 24px;
+      font-family: inherit;
+    }
+
+    .analyze-btn:hover {
+      background: #d62f3d;
+      transform: translateY(-1px);
+    }
+
+    .analyze-btn:active {
+      transform: translateY(0);
+    }
+
+    .analyze-btn:disabled {
+      background: #444;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Clean loading state */
+    .loading-container {
+      text-align: center;
+      padding: 40px 20px;
+    }
+
+    .loading-spinner {
+      width: 32px;
+      height: 32px;
+      border: 2px solid #333;
+      border-top: 2px solid #e63946;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 16px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+      color: #888;
+      font-size: 14px;
+      font-weight: 400;
+    }
+
+    /* Minimal result card */
+    .result-card {
+      background: #222;
+      border-radius: 12px;
+      padding: 24px;
+      margin-top: 24px;
+      border: 1px solid #333;
+    }
+
+    /* Clean section design */
+    .section {
+      margin: 24px 0;
+    }
+
+    .section:first-child {
+      margin-top: 0;
+    }
+
+    .section:last-child {
+      margin-bottom: 0;
+    }
+
+    .section-title {
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Minimal badges */
     .badge {
       display: inline-block;
-      padding: 3px 8px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: bold;
-      color: white;
-      margin-bottom: 5px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 500;
+      margin-right: 8px;
+      margin-bottom: 8px;
+      color: #ffffff;
     }
-    .badge-left { background-color: #007bff; }
-    .badge-right { background-color: #dc3545; }
-    .badge-center { background-color: #6c757d; }
-    .badge-other { background-color: #f4b400; }
-    ul { padding-left: 20px; margin: 5px 0; }
-    b { color: #ffffff; }
+
+    .badge-left { background: #2563eb; }
+    .badge-right { background: #dc2626; }
+    .badge-center { background: #6b7280; }
+    .badge-none { background: #059669; }
+    .badge-other { background: #d97706; }
+    .badge.tone { background: #6b7280; }
+
+    /* Clean progress bars */
+    .progress-container {
+      margin: 16px 0;
+    }
+
+    .progress-bar {
+      height: 6px;
+      border-radius: 3px;
+      background: #333;
+      overflow: hidden;
+      margin: 8px 0;
+    }
+
+    .progress-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.8s ease;
+    }
+
+    .progress-fill.bias {
+      background: #10b981;
+    }
+
+    .progress-fill.confidence {
+      background: #3b82f6;
+    }
+
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .progress-value {
+      font-size: 13px;
+      font-weight: 500;
+      color: #ffffff;
+    }
+
+    .progress-text {
+      font-size: 11px;
+      color: #888;
+    }
+
+    /* Dynamic indicator */
+    .dynamic-indicator {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      background: #10b981;
+      border-radius: 50%;
+      margin-left: 6px;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Minimal summary box */
+    .summary-box {
+      background: #2a2a2a;
+      padding: 16px;
+      border-radius: 8px;
+      border-left: 3px solid #3b82f6;
+      margin: 12px 0;
+    }
+
+    /* Clean error styling */
+    .error {
+      background: #2a1a1a;
+      border: 1px solid #4a2a2a;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+
+    .error-title {
+      color: #ef4444;
+      font-weight: 600;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .error-message {
+      color: #cbd5e1;
+      font-size: 13px;
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+
+    /* Minimal retry button */
+    .retry-btn {
+      background: #e63946;
+      color: #ffffff;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      font-family: inherit;
+      transition: background 0.2s ease;
+    }
+
+    .retry-btn:hover {
+      background: #d62f3d;
+    }
+
+    /* Clean debug info */
+    .debug-info {
+      background: #2a2a2a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 16px;
+      margin: 20px 0;
+      font-size: 11px;
+      color: #888;
+    }
+
+    .debug-title {
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #aaa;
+      font-size: 12px;
+    }
+
+    /* Typography */
+    ul {
+      margin: 8px 0;
+      padding-left: 20px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    li {
+      margin: 4px 0;
+      color: #e5e7eb;
+    }
+
+    p {
+      font-size: 13px;
+      margin: 8px 0;
+      line-height: 1.5;
+      color: #e5e7eb;
+    }
+
+    .text-medium {
+      font-size: 14px;
+      font-weight: 400;
+    }
+
+    .text-small {
+      font-size: 12px;
+      color: #888;
+    }
   </style>
 </head>
 <body>
-  <h1>TruSight Bias Detection</h1>
-  <button id="analyzeBtn">Analyze Page</button>
-  <div id="result">Click "Analyze Page" to start...</div>
+  <div class="container">
+    <div class="header">
+      <h1>TruSight</h1>
+      <div class="subtitle">Bias Detection</div>
+    </div>
+    
+    <button id="analyzeBtn" class="analyze-btn">
+      <span id="btnText">Analyze Page</span>
+    </button>
+    
+    <div id="result"></div>
+    
+    <div id="debug" class="debug-info" style="display: none;">
+      <div class="debug-title">Debug Information</div>
+      <span id="debug-content"></span>
+    </div>
+  </div>
   <script src="popup.js"></script>
 </body>
 </html>
