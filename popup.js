@@ -1,7 +1,7 @@
 // ------------------------
 // GROQ API KEY
 // ------------------------
-const GROQ_API_KEY = "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"; // Replace with your real key
+const GROQ_API_KEY = "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"; // Replace with your real key
 
 // ------------------------
 // ULTRA-AGGRESSIVE SYSTEM PROMPT
@@ -157,8 +157,6 @@ async function getPageContent() {
 // CALL GROQ API
 // ------------------------
 async function analyzeWithGroq(pageText, useFallback = false) {
-  const GROQ_API_KEY = 'gsk_YourGroqAPIKeyHere'; // Replace with your actual API key
-  
   if (!GROQ_API_KEY || GROQ_API_KEY === 'gsk_YourGroqAPIKeyHere') {
     throw new Error('Please configure your Groq API key in popup.js');
   }
@@ -179,8 +177,8 @@ async function analyzeWithGroq(pageText, useFallback = false) {
   }
   
   const requestBody = {
-    model: "llama3-70b-8192",
-    messages: [
+      model: "llama3-70b-8192",
+      messages: [
       {
         role: "system",
         content: systemPrompt
@@ -204,13 +202,13 @@ async function analyzeWithGroq(pageText, useFallback = false) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(requestBody)
-    });
-    
-    if (!response.ok) {
+  });
+
+  if (!response.ok) {
       throw new Error(`API request failed: ${response.status} ${response.statusText}`);
-    }
-    
-    const data = await response.json();
+  }
+
+  const data = await response.json();
     
     if (!data.choices || !data.choices[0] || !data.choices[0].message) {
       throw new Error('Invalid response structure from API');
@@ -263,54 +261,7 @@ async function analyzeWithGroq(pageText, useFallback = false) {
   }
 }
 
-// ------------------------
-// FALLBACK ANALYSIS FUNCTION
-// ------------------------
-async function analyzeBiasWithFallback() {
-  const button = document.getElementById('analyzeBtn');
-  const btnText = document.getElementById('btnText');
-  const resultDiv = document.getElementById('result');
-  
-  try {
-    button.disabled = true;
-    btnText.textContent = 'Analyzing (Fallback)...';
-    hideDebug();
-    
-    // Show clean loading state
-    resultDiv.innerHTML = `
-      <div class="loading-container">
-        <div class="loading-spinner"></div>
-        <div class="loading-text">Analyzing with fallback prompt...</div>
-      </div>
-    `;
-    
-    const pageText = await getPageContent();
-    
-    if (!pageText || pageText.trim().length < 200) {
-      throw new Error("Page content too short (minimum 200 characters required). Please try on a different webpage with more content.");
-    }
-    
-    showDebug(`Page content length: ${pageText.length} characters`);
-    
-    // Use fallback prompt directly
-    const jsonResponse = await analyzeWithGroq(pageText, true);
-    
-    renderResult(jsonResponse);
-    
-  } catch (error) {
-    console.error("Fallback Analysis Error:", error);
-    resultDiv.innerHTML = `
-      <div class="error">
-        <div class="error-title">Fallback Analysis Failed</div>
-        <div class="error-message">${error.message}</div>
-        <button class="retry-btn" onclick="analyzeBias()">Try Normal Analysis</button>
-      </div>
-    `;
-  } finally {
-    button.disabled = false;
-    btnText.textContent = 'Analyze Page';
-  }
-}
+
 
 // ------------------------
 // BIAS ANALYSIS
@@ -386,15 +337,9 @@ async function analyzeBias() {
 // ------------------------
 // RENDER RESULT
 // ------------------------
-function renderResult(jsonString) {
-  let parsed;
-  
+function renderResult(parsed) {
   try {
-    // Clean the JSON string
-    const cleanedJson = jsonString.trim();
-    
-    // Try to parse the JSON
-    parsed = JSON.parse(cleanedJson);
+    // parsed is already a parsed object from analyzeWithGroq
     
     // Validate required fields
     const requiredFields = ['bias', 'subtype', 'tone', 'intensity', 'confidence', 'evidence', 'neutral_rewrite', 'source'];
@@ -470,10 +415,7 @@ function renderResult(jsonString) {
     hideDebug(); // Hide debug info on success
     
   } catch (e) {
-    console.error("JSON Parse Error:", e);
-    console.error("Raw response:", jsonString);
-    
-    showDebug(`JSON Parse Error: ${e.message}. Raw response: ${jsonString.substring(0, 200)}...`);
+    console.error("Validation Error:", e);
     
     // If it's a static value error, show a special message
     if (e.message.includes('static') || e.message.includes('LLM')) {
@@ -556,17 +498,17 @@ function renderResult(jsonString) {
       </div>
 
       <div class="section">
-        <div class="section-title">Source</div>
+    <div class="section-title">Source</div>
         <p class="text-medium">${formatSource(source)}</p>
       </div>
 
       <div class="section">
-        <div class="section-title">Evidence</div>
-        ${evidenceList}
+    <div class="section-title">Evidence</div>
+    ${evidenceList}
       </div>
 
       <div class="section">
-        <div class="section-title">Neutral Rewrite</div>
+    <div class="section-title">Neutral Rewrite</div>
         <p class="text-medium">${neutral_rewrite}</p>
       </div>
     </div>
@@ -624,8 +566,8 @@ function showError(message) {
         <div class="error-message">${message}</div>
         <div class="error-description">The AI model is returning static values instead of analyzing content. Try the fallback prompt for better results.</div>
         <div class="button-group">
-          <button class="retry-button" onclick="analyzeBiasWithFallback()">Retry with Fallback Prompt</button>
-          <button class="retry-button" onclick="analyzeBias()">Retry Normal</button>
+          <button class="retry-btn" onclick="analyzeBiasWithFallback()">Retry with Fallback Prompt</button>
+          <button class="retry-btn" onclick="analyzeBias()">Retry Normal</button>
         </div>
         <button class="debug-toggle" onclick="toggleDebug()">Show Debug Info</button>
       </div>
@@ -664,7 +606,7 @@ async function analyzeBiasWithFallback() {
 
 // Toggle debug info
 function toggleDebug() {
-  const debugDiv = document.getElementById('debug-info');
+  const debugDiv = document.getElementById('debug');
   if (debugDiv) {
     debugDiv.style.display = debugDiv.style.display === 'none' ? 'block' : 'none';
   }
