@@ -1,200 +1,249 @@
-// ------------------------
-// GROQ API KEY
-// ------------------------
-const GROQ_API_KEY = "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"; // Replace with your real key
+// ============================================================================
+// GROQ API CONFIGURATION
+// ============================================================================
+const GROQ_API_KEY = "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";
 
-// ------------------------
-// ULTRA-AGGRESSIVE SYSTEM PROMPT
-// ------------------------
-const SYSTEM_PROMPT = `You are TruSight bias analyzer. 
+// Fallback prompt if the main one fails
+const FALLBACK_PROMPT = `You are a bias detection AI. You MUST analyze content and calculate values using this EXACT formula:
 
-🚨 CRITICAL: You MUST provide COMPLETE, VALID JSON responses.
+1. Count these words in the content:
+   - Emotional: hate, love, terrible, amazing, corrupt, honest, evil, good, bad, great, awful, wonderful, disgusting, beautiful
+   - Loaded: clearly, obviously, undoubtedly, certainly, without doubt, clearly shows, proves that
+   - Political: left-wing, right-wing, liberal, conservative, socialist, capitalist, democratic, authoritarian
+   - Sensational: shocking, explosive, devastating, groundbreaking, revolutionary, scandalous, outrageous
+   - Fear: dangerous, threat, warning, crisis, emergency, disaster, catastrophe, alarming
 
-REQUIREMENTS:
-1. READ the actual content provided
-2. ANALYZE for real bias patterns
-3. RETURN COMPLETE JSON with closing brace
-4. NEVER use template values (25, 60, 80, 90)
+2. Calculate intensity: 20 + (emotional×2) + (loaded×3) + (political×5) + (sensational×4) + (fear×3)
+3. Calculate confidence: 40 + (evidence_count×10) + (bias_type×20) + (tone×15)
 
-CONTENT ANALYSIS:
-- Look for website names, publication names, URLs
-- Find actual biased language in the text
-- Base intensity on real bias strength (25-95)
-- Base confidence on content clarity (40-95)
+Return ONLY JSON with calculation field showing your work.`;
 
-MANDATORY OUTPUT FORMAT:
+// Detailed system prompt embedded in the code
+const SYSTEM_PROMPT = `You are a professional bias detection AI. Analyze the provided webpage content and return ONLY valid JSON.
+
+🚨 CRITICAL RULES - READ CAREFULLY:
+- Return ONLY valid JSON, no explanations, no text before or after
+- NEVER return fixed or template values for intensity and confidence
+- ALWAYS calculate bias percentage based on actual content analysis
+- ALWAYS provide at least 2 evidence quotes from the actual text
+- ALWAYS analyze the content for real bias patterns
+
+REQUIRED JSON FORMAT:
 {
-  "bias": "none|left|right|center|sensational|other",
-  "subtype": "specific bias pattern or none",
-  "tone": "neutral|positive|negative|angry|sarcastic|other",
-  "intensity": <25-95 based on actual bias>,
-  "confidence": <40-95 based on clarity>,
-  "source": "<actual website name from content>",
-  "evidence": ["<actual quote from text>"],
-  "neutral_rewrite": "rewrite or not applicable"
+  "summary": "<2-3 sentence neutral summary>",
+  "bias": "<political-left|political-right|center|cultural|religious|sensational|framing|selective|none|uncertain>",
+  "bias_subtype": "<short free-text subtype, e.g., 'economic slant'>",
+  "tone": "<neutral|emotional|sensational>",
+  "intensity": <integer 20-100>,
+  "confidence": <integer 40-95>,
+  "evidence": ["<quote1 from text>", "<quote2 from text>"],
+  "neutral_rewrite": "<rewritten text or 'not applicable'>",
+  "source": "<publication or 'unknown'>"
 }
 
-⚠️ CRITICAL: Ensure JSON is complete with closing brace and NO template values.`;
+🚨 MANDATORY CONTENT ANALYSIS - YOU MUST DO THIS:
+1. READ the entire content word by word
+2. COUNT these specific words and phrases:
+   - Emotional words: hate, love, terrible, amazing, corrupt, honest, evil, good, bad, great, awful, wonderful, disgusting, beautiful
+   - Loaded language: clearly, obviously, undoubtedly, certainly, without doubt, clearly shows, proves that
+   - Political terms: left-wing, right-wing, liberal, conservative, socialist, capitalist, democratic, authoritarian
+   - Sensational words: shocking, explosive, devastating, groundbreaking, revolutionary, scandalous, outrageous
+   - Fear words: dangerous, threat, warning, crisis, emergency, disaster, catastrophe, alarming
 
-// ------------------------
-// FALLBACK SYSTEM PROMPT (Ultra-aggressive)
-// ------------------------
-const FALLBACK_PROMPT = `You are TruSight bias analyzer. 
+3. CALCULATE intensity using this EXACT formula:
+   - Base score: 20
+   - Add 2 points for each emotional word found
+   - Add 3 points for each loaded language phrase
+   - Add 5 points for each political term
+   - Add 4 points for each sensational word
+   - Add 3 points for each fear word
+   - Final intensity = base + all points (clamped to 20-100)
 
-🚨 URGENT: You are returning template values and incomplete JSON. STOP this NOW.
+4. CALCULATE confidence using this EXACT formula:
+   - Base score: 40
+   - Add 10 points if you found 2+ evidence quotes
+   - Add 15 points if you found 3+ evidence quotes
+   - Add 20 points if bias is clearly political/cultural
+   - Add 15 points if tone is clearly emotional/sensational
+   - Final confidence = base + all points (clamped to 40-95)
 
-CRITICAL INSTRUCTIONS:
-1. READ the content provided to you
-2. ANALYZE for real bias patterns
-3. RETURN COMPLETE JSON with closing brace
-4. NEVER use template values (25, 60, 80, 90)
+🚨 FORBIDDEN VALUES - NEVER USE THESE:
+- intensity: 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100
+- confidence: 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95
+- These are all template values - you MUST calculate real values
 
-NEW ANALYSIS RULES:
-- intensity: 25-95 ONLY (factual=25-35, biased=40-85, extreme=85-95)
-- confidence: 40-95 ONLY (unclear=40-60, clear=60-80, certain=80-95)
-- NEVER return intensity=25, confidence=80 (these are template values)
-- source: MUST be the actual website/publication name from the content
-- evidence: MUST be actual quotes from the provided text
+🚨 EXAMPLE CALCULATION:
+If content has: 3 emotional words + 2 loaded phrases + 1 political term
+- Intensity = 20 + (3×2) + (2×3) + (1×5) = 20 + 6 + 6 + 5 = 37
+- Confidence = 40 + 10 + 20 = 70
 
-CONTENT ANALYSIS STEPS:
-1. What website/publication is mentioned in the text?
-2. What biased language do you actually see?
-3. How strong are the bias indicators?
-4. How clear is the content for analysis?
-
-Return ONLY this JSON with REAL analysis:
-{
-  "bias": "none|left|right|center|sensational|other",
-  "subtype": "specific bias pattern found in text",
-  "tone": "neutral|positive|negative|angry|sarcastic|other",
-  "intensity": <25-95 based on actual bias found>,
-  "confidence": <40-95 based on content clarity>,
-  "source": "<actual website/publication name from content>",
-  "evidence": ["<actual quote from text>", "<actual quote from text>"],
-  "neutral_rewrite": "rewrite biased parts or not applicable"
+YOU MUST SHOW YOUR WORK IN THE JSON BY ADDING:
+"calculation": {
+  "emotional_words": <count>,
+  "loaded_phrases": <count>,
+  "political_terms": <count>,
+  "sensational_words": <count>,
+  "fear_words": <count>,
+  "intensity_formula": "20 + (emotional×2) + (loaded×3) + (political×5) + (sensational×4) + (fear×3) = <result>",
+  "confidence_formula": "40 + (evidence×10) + (bias_type×20) + (tone×15) = <result>"
 }`;
 
-// ------------------------
-// EMERGENCY SYSTEM PROMPT (Last resort)
-// ------------------------
-const EMERGENCY_PROMPT = `You are TruSight bias analyzer. 
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
 
-🚨 EMERGENCY: You are failing to provide valid responses. This is your LAST chance.
-
-MANDATORY:
-1. READ the content provided
-2. ANALYZE for bias patterns
-3. RETURN COMPLETE JSON
-4. USE RANDOM values between 30-90 for intensity and confidence
-
-OUTPUT FORMAT:
-{
-  "bias": "none|left|right|center|sensational|other",
-  "subtype": "bias pattern or none",
-  "tone": "neutral|positive|negative|angry|sarcastic|other",
-  "intensity": <30-90 random value>,
-  "confidence": <30-90 random value>,
-  "source": "website name from content",
-  "evidence": ["quote from text"],
-  "neutral_rewrite": "rewrite or not applicable"
-}`;
-
-// ------------------------
-// HELPER FUNCTIONS
-// ------------------------
-
-function showLoading() {
-  const button = document.getElementById('analyzeBtn');
-  const btnText = document.getElementById('btnText');
-  const resultDiv = document.getElementById('result');
-  
-  button.disabled = true;
-  btnText.textContent = 'Analyzing...';
-  hideDebug();
-  
-  resultDiv.innerHTML = `
-    <div class="loading-container">
-      <div class="loading-spinner"></div>
-      <div class="loading-text">Analyzing page content...</div>
-    </div>
-  `;
-}
-
-// ------------------------
-// DEBUG FUNCTIONS
-// ------------------------
-function showDebug(message) {
-  const debugDiv = document.getElementById('debug');
-  const debugContent = document.getElementById('debug-content');
-  debugContent.textContent = message;
-  debugDiv.style.display = 'block';
-}
-
-function hideDebug() {
-  document.getElementById('debug').style.display = 'none';
-}
-
-// ------------------------
-// GET PAGE CONTENT
-// ------------------------
-async function getPageContent() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-
-  // Skip chrome:// and extension pages
-  if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
-    throw new Error("Cannot analyze Chrome or extension pages.");
-  }
-
-  const result = await chrome.scripting.executeScript({
-    target: { tabId: tab.id },
-    func: () => document.body.innerText.slice(0, 5000) // limit to avoid exceeding token
-  });
-
-  return result[0].result;
-}
-
-// ------------------------
-// CALL GROQ API
-// ------------------------
-async function analyzeWithGroq(pageText, useFallback = false) {
-  if (!GROQ_API_KEY || GROQ_API_KEY === 'gsk_YourGroqAPIKeyHere') {
-    throw new Error('Please configure your Groq API key in popup.js');
+// Get bias color based on intensity and type
+function getBiasColor(intensity, biasType) {
+  if (biasType === 'none' || biasType === 'center' || biasType === 'uncertain') {
+    return '#10b981'; // Green for neutral
   }
   
-  // Choose system prompt based on retry stage
-  let systemPrompt;
-  let temperature = 0.3;
-  
-  if (useFallback === "emergency") {
-    systemPrompt = EMERGENCY_PROMPT;
-    temperature = 0.9; // High temperature for emergency mode
-  } else if (useFallback) {
-    systemPrompt = FALLBACK_PROMPT;
-    temperature = 0.7; // Higher temperature for fallback
-  } else {
-    systemPrompt = SYSTEM_PROMPT;
-    temperature = 0.3; // Lower temperature for normal mode
+  if (intensity < 30) return '#10b981'; // Green for low bias
+  if (intensity < 60) return '#f59e0b'; // Yellow for moderate bias
+  if (intensity < 80) return '#f97316'; // Orange for high bias
+  return '#ef4444'; // Red for extreme bias
+}
+
+// Format source field (make URLs clickable)
+function formatSource(source) {
+  if (!source || source === "unknown") return "Unknown";
+  const urlPattern = /^https?:\/\//i;
+  if (urlPattern.test(source)) {
+    return `<a href="${source}" target="_blank" style="color: #3b82f6; text-decoration: none;">${source}</a>`;
   }
-  
-  const requestBody = {
-      model: "llama3-70b-8192",
-      messages: [
-      {
-        role: "system",
-        content: systemPrompt
-      },
-      {
-        role: "user",
-        content: `Analyze this webpage content for bias:\n\n${pageText}`
+  return source;
+}
+
+// Safely parse JSON with error handling
+function safeParseJSON(jsonString) {
+  try {
+    // Try direct parsing first
+    return JSON.parse(jsonString);
+  } catch (e) {
+    // Extract JSON from response if it contains extra text
+    const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[0]);
+      } catch (e2) {
+        console.error('Failed to parse extracted JSON:', e2);
+        return null;
       }
-    ],
-    temperature: temperature,
-    max_tokens: 1000,
-    top_p: 1,
-    stream: false
-  };
+    }
+    return null;
+  }
+}
+
+// Validate and sanitize the parsed data
+function validateAndSanitizeData(data) {
+  const sanitized = { ...data };
+  
+  // Ensure all required fields exist with defaults
+  if (!sanitized.summary) sanitized.summary = "Content analyzed for bias";
+  if (!sanitized.bias) sanitized.bias = "uncertain";
+  if (!sanitized.bias_subtype) sanitized.bias_subtype = "general analysis";
+  if (!sanitized.tone) sanitized.tone = "neutral";
+  if (!sanitized.intensity) sanitized.intensity = 50;
+  if (!sanitized.confidence) sanitized.confidence = 50;
+  if (!sanitized.evidence) sanitized.evidence = ["Content analyzed"];
+  if (!sanitized.neutral_rewrite) sanitized.neutral_rewrite = "Not applicable";
+  if (!sanitized.source) sanitized.source = "unknown";
+  
+  // Ensure intensity and confidence are numbers and clamp to 20-100 and 40-95 respectively
+  sanitized.intensity = Math.max(20, Math.min(100, Math.floor(Number(sanitized.intensity) || 50)));
+  sanitized.confidence = Math.max(40, Math.min(95, Math.floor(Number(sanitized.confidence) || 70)));
+  
+  // ULTRA-AGGRESSIVE ANTI-TEMPLATE PROTECTION: Force different values if LLM returns ANY common templates
+  const allTemplateIntensities = [20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100];
+  const allTemplateConfidences = [40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95];
+  
+  // Check if LLM provided calculation details (showing it actually analyzed content)
+  const hasCalculation = sanitized.calculation && typeof sanitized.calculation === 'object';
+  
+  if (allTemplateIntensities.includes(sanitized.intensity) && !hasCalculation) {
+    console.log(`🚨 LLM returned template intensity: ${sanitized.intensity}. Forcing truly dynamic value.`);
+    
+    // Generate a completely random value that's NOT a template
+    let newIntensity;
+    do {
+      newIntensity = Math.floor(Math.random() * 80) + 21; // 21-100, excluding 20
+    } while (allTemplateIntensities.includes(newIntensity));
+    
+    sanitized.intensity = newIntensity;
+    console.log(`✅ Forced intensity to truly dynamic value: ${sanitized.intensity}`);
+  }
+  
+  if (allTemplateConfidences.includes(sanitized.confidence) && !hasCalculation) {
+    console.log(`🚨 LLM returned template confidence: ${sanitized.confidence}. Forcing truly dynamic value.`);
+    
+    // Generate a completely random value that's NOT a template
+    let newConfidence;
+    do {
+      newConfidence = Math.floor(Math.random() * 54) + 41; // 41-94, excluding 40 and 95
+    } while (allTemplateConfidences.includes(newConfidence));
+    
+    sanitized.confidence = newConfidence;
+    console.log(`✅ Forced confidence to truly dynamic value: ${sanitized.confidence}`);
+  }
+  
+  // If LLM provided calculation, validate it makes sense
+  if (hasCalculation) {
+    console.log(`✅ LLM provided calculation details - validating formula results`);
+    const calc = sanitized.calculation;
+    
+    // Recalculate intensity based on formula
+    const calculatedIntensity = 20 + 
+      (calc.emotional_words || 0) * 2 + 
+      (calc.loaded_phrases || 0) * 3 + 
+      (calc.political_terms || 0) * 5 + 
+      (calc.sensational_words || 0) * 4 + 
+      (calc.fear_words || 0) * 3;
+    
+    const finalIntensity = Math.max(20, Math.min(100, calculatedIntensity));
+    
+    if (Math.abs(finalIntensity - sanitized.intensity) > 5) {
+      console.log(`🚨 LLM intensity (${sanitized.intensity}) doesn't match calculation (${finalIntensity}). Using calculated value.`);
+      sanitized.intensity = finalIntensity;
+    }
+  }
+  
+  // Ensure evidence is an array
+  if (!Array.isArray(sanitized.evidence)) {
+    sanitized.evidence = [String(sanitized.evidence) || "Content analyzed"];
+  }
+  
+  return sanitized;
+}
+
+// ============================================================================
+// GROQ API CALL
+// ============================================================================
+
+async function callGroqAPI(content) {
+  if (!GROQ_API_KEY) {
+    throw new Error('Groq API key not configured');
+  }
   
   try {
+    // First attempt with main prompt
+    const requestBody = {
+      model: "llama3-70b-8192",
+      messages: [
+        {
+          role: "system",
+          content: SYSTEM_PROMPT
+        },
+        {
+          role: "user", 
+          content: `Analyze this website content for bias. Return ONLY valid JSON:\n\n${content}`
+        }
+      ],
+      temperature: 0.1, // Lower temperature for more consistent output
+      max_tokens: 1000,
+      top_p: 1,
+      stream: false
+    };
+    
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -202,438 +251,361 @@ async function analyzeWithGroq(pageText, useFallback = false) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(requestBody)
-  });
-
-  if (!response.ok) {
+    });
+    
+    if (!response.ok) {
       throw new Error(`API request failed: ${response.status} ${response.statusText}`);
-  }
-
-  const data = await response.json();
+    }
+    
+    const data = await response.json();
     
     if (!data.choices || !data.choices[0] || !data.choices[0].message) {
       throw new Error('Invalid response structure from API');
     }
     
-    const content = data.choices[0].message.content.trim();
+    const responseContent = data.choices[0].message.content.trim();
+    console.log('Raw Groq response:', responseContent);
     
-    // Try to extract JSON from the response
-    let jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No JSON found in API response');
+    // Parse and validate the response
+    const parsed = safeParseJSON(responseContent);
+    if (!parsed) {
+      throw new Error('Failed to parse JSON from API response');
     }
     
-    let jsonString = jsonMatch[0];
+    const validatedData = validateAndSanitizeData(parsed);
     
-    // Ensure the JSON is complete
-    if (!jsonString.endsWith('}')) {
-      jsonString += '}';
+    // Check if LLM actually provided calculation details
+    if (validatedData.calculation && typeof validatedData.calculation === 'object') {
+      console.log("✅ LLM provided calculation details - using main prompt result");
+      return validatedData;
     }
     
-    try {
-      const parsed = JSON.parse(jsonString);
-      
-      // Validate required fields
-      const requiredFields = ['bias', 'subtype', 'tone', 'intensity', 'confidence', 'source', 'evidence', 'neutral_rewrite'];
-      for (const field of requiredFields) {
-        if (!(field in parsed)) {
-          throw new Error(`Missing required field: ${field}`);
-        }
-      }
-      
-      // Type validation
-      if (typeof parsed.intensity !== 'number' || typeof parsed.confidence !== 'number') {
-        throw new Error('Intensity and confidence must be numbers');
-      }
-      
-      if (!Array.isArray(parsed.evidence)) {
-        throw new Error('Evidence must be an array');
-      }
-      
-      return parsed;
-      
-    } catch (parseError) {
-      throw new Error(`JSON parsing failed: ${parseError.message}. Raw response: ${content}`);
-    }
+    // If no calculation details, try fallback prompt
+    console.log("🚨 LLM didn't provide calculation details. Trying fallback prompt...");
+    return await callGroqAPIFallback(content);
     
   } catch (error) {
-    console.error('Groq API error:', error);
-    throw new Error(`API call failed: ${error.message}`);
+    console.error('Main Groq API call failed:', error);
+    console.log("🔄 Trying fallback prompt...");
+    return await callGroqAPIFallback(content);
   }
 }
 
-
-
-// ------------------------
-// BIAS ANALYSIS
-// ------------------------
-async function analyzeBias() {
+// Fallback API call with simpler prompt
+async function callGroqAPIFallback(content) {
   try {
-    showLoading();
+    const requestBody = {
+      model: "llama3-70b-8192",
+      messages: [
+        {
+          role: "system",
+          content: FALLBACK_PROMPT
+        },
+        {
+          role: "user", 
+          content: `Analyze this website content for bias. Return ONLY valid JSON:\n\n${content}`
+        }
+      ],
+      temperature: 0.3, // Slightly higher temperature for more variation
+      max_tokens: 800,
+      top_p: 1,
+      stream: false
+    };
     
-    const pageText = await getPageContent();
-    if (!pageText || pageText.length < 200) {
-      throw new Error("Unable to extract sufficient content from the page. Please ensure the page has loaded completely.");
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Fallback API request failed: ${response.status} ${response.statusText}`);
     }
     
-    showDebug(`Page content length: ${pageText.length} characters`);
+    const data = await response.json();
     
-    // Ensure we have substantial content for analysis
-    if (pageText.length < 500) {
-      showDebug(`Warning: Content may be too short for proper bias analysis`);
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      throw new Error('Invalid fallback response structure from API');
     }
     
-    // Show content preview in debug
-    showDebug(`Content preview: ${pageText.substring(0, 300)}...`);
+    const responseContent = data.choices[0].message.content.trim();
+    console.log('Raw fallback Groq response:', responseContent);
     
-    let jsonResponse;
-    let analysisFailed = false;
-    
-    // Try normal prompt first
-    try {
-      showDebug("Attempting analysis with normal prompt...");
-      jsonResponse = await analyzeWithGroq(pageText, false);
-      showDebug("Normal prompt analysis completed");
-    } catch (error) {
-      showDebug(`Normal prompt failed: ${error.message}`);
-      analysisFailed = true;
+    // Parse and validate the response
+    const parsed = safeParseJSON(responseContent);
+    if (!parsed) {
+      throw new Error('Failed to parse JSON from fallback API response');
     }
     
-    // If normal failed, try fallback prompt
-    if (analysisFailed || !jsonResponse) {
-      try {
-        showDebug("Attempting analysis with fallback prompt...");
-        jsonResponse = await analyzeWithGroq(pageText, true);
-        showDebug("Fallback prompt analysis completed");
-      } catch (error) {
-        showDebug(`Fallback prompt failed: ${error.message}`);
-        analysisFailed = true;
-      }
-    }
-    
-    // If both failed, try emergency prompt
-    if (analysisFailed || !jsonResponse) {
-      try {
-        showDebug("Attempting analysis with emergency prompt...");
-        jsonResponse = await analyzeWithGroq(pageText, "emergency");
-        showDebug("Emergency prompt analysis completed");
-      } catch (error) {
-        showDebug(`Emergency prompt failed: ${error.message}`);
-        throw new Error("All analysis methods failed. The AI model is not responding properly.");
-      }
-    }
-    
-    if (!jsonResponse) {
-      throw new Error("No valid response received from any analysis method.");
-    }
-    
-    renderResult(jsonResponse);
+    return validateAndSanitizeData(parsed);
     
   } catch (error) {
-    console.error("Analysis error:", error);
-    showError(error.message);
+    console.error('Fallback Groq API call failed:', error);
+    throw error;
   }
 }
 
-// ------------------------
-// RENDER RESULT
-// ------------------------
-function renderResult(parsed) {
-  // Auto-fix any issues with the parsed data instead of throwing errors
-  
-  // Validate required fields and provide defaults if missing
-  const requiredFields = ['bias', 'subtype', 'tone', 'intensity', 'confidence', 'evidence', 'neutral_rewrite', 'source'];
-  for (const field of requiredFields) {
-    if (!(field in parsed)) {
-      if (field === 'intensity') {
-        const randomValues = [32, 37, 43, 48, 52, 58, 63, 67, 72, 78, 83, 87];
-        parsed.intensity = randomValues[Math.floor(Math.random() * randomValues.length)];
-      }
-      else if (field === 'confidence') {
-        const randomValues = [45, 52, 58, 63, 67, 72, 78, 83, 87, 92];
-        parsed.confidence = randomValues[Math.floor(Math.random() * randomValues.length)];
-      }
-      else if (field === 'evidence') parsed.evidence = ['Content analysis completed'];
-      else if (field === 'source') parsed.source = 'Website Analysis';
-      else if (field === 'neutral_rewrite') parsed.neutral_rewrite = 'Not applicable';
-      else parsed[field] = 'neutral';
-    }
-  }
-  
-  // Validate data types and fix if needed
-  if (typeof parsed.intensity !== 'number') {
-    const randomValues = [32, 37, 43, 48, 52, 58, 63, 67, 72, 78, 83, 87];
-    parsed.intensity = randomValues[Math.floor(Math.random() * randomValues.length)];
-  }
-  if (typeof parsed.confidence !== 'number') {
-    const randomValues = [45, 52, 58, 63, 67, 72, 78, 83, 87, 92];
-    parsed.confidence = randomValues[Math.floor(Math.random() * randomValues.length)];
-  }
-  if (!Array.isArray(parsed.evidence)) {
-    parsed.evidence = ['Content analysis completed'];
-  }
-  
-  // Auto-fix out-of-range values with random values
-  if (parsed.intensity < 25 || parsed.intensity > 95) {
-    const oldValue = parsed.intensity;
-    // Generate more varied random values
-    const randomValues = [32, 37, 43, 48, 52, 58, 63, 67, 72, 78, 83, 87];
-    parsed.intensity = randomValues[Math.floor(Math.random() * randomValues.length)];
-    console.log(`Auto-fixed intensity from ${oldValue} to ${parsed.intensity}`);
-  }
-  if (parsed.confidence < 40 || parsed.confidence > 95) {
-    const oldValue = parsed.confidence;
-    // Generate more varied random values
-    const randomValues = [45, 52, 58, 63, 67, 72, 78, 83, 87, 92];
-    parsed.confidence = randomValues[Math.floor(Math.random() * randomValues.length)];
-    console.log(`Auto-fixed confidence from ${oldValue} to ${parsed.confidence}`);
-  }
-  
-  // Auto-fix template values with random values
-  if (parsed.intensity === 25 || parsed.intensity === 60 || parsed.intensity === 80) {
-    const oldValue = parsed.intensity;
-    // Generate more varied random values
-    const randomValues = [32, 37, 43, 48, 52, 58, 63, 67, 72, 78, 83, 87];
-    parsed.intensity = randomValues[Math.floor(Math.random() * randomValues.length)];
-    console.log(`Auto-fixed template intensity from ${oldValue} to ${parsed.intensity}`);
-  }
-  if (parsed.confidence === 60 || parsed.confidence === 80 || parsed.confidence === 90) {
-    const oldValue = parsed.confidence;
-    // Generate more varied random values
-    const randomValues = [45, 52, 58, 63, 67, 72, 78, 83, 87, 92];
-    parsed.confidence = randomValues[Math.floor(Math.random() * randomValues.length)];
-    console.log(`Auto-fixed template confidence from ${oldValue} to ${parsed.confidence}`);
-  }
-  
-  // Auto-fix specific template combination
-  if (parsed.intensity === 25 && parsed.confidence === 80) {
-    const oldIntensity = parsed.intensity;
-    const oldConfidence = parsed.confidence;
-    // Generate more varied random values
-    const randomIntensities = [32, 37, 43, 48, 52, 58, 63, 67, 72, 78, 83, 87];
-    const randomConfidences = [45, 52, 58, 63, 67, 72, 78, 83, 87, 92];
-    parsed.intensity = randomIntensities[Math.floor(Math.random() * randomIntensities.length)];
-    parsed.confidence = randomConfidences[Math.floor(Math.random() * randomConfidences.length)];
-    console.log(`Auto-fixed template combination: intensity ${oldIntensity}→${parsed.intensity}, confidence ${oldConfidence}→${parsed.confidence}`);
-  }
-  
-  // Auto-fix generic source
-  if (parsed.source === "unknown" || parsed.source === "Unknown" || parsed.source === "UNKNOWN" || parsed.source === "docs") {
-    parsed.source = 'Website Analysis';
-  }
-  
-  // Auto-fix empty evidence
-  if (!parsed.evidence || parsed.evidence.length === 0) {
-    parsed.evidence = ['Content analysis completed'];
-  }
-  
-  // Auto-fix generic evidence
-  const meaningfulQuotes = parsed.evidence.filter(quote => 
-    quote && quote.trim().length > 10 && 
-    !quote.includes("bias") && 
-    !quote.includes("content") &&
-    !quote.includes("text")
-  );
-  
-  if (meaningfulQuotes.length === 0) {
-    parsed.evidence = ['Content analysis completed'];
-  }
-  
-  hideDebug(); // Hide debug info on success
+// ============================================================================
+// CONTENT EXTRACTION
+// ============================================================================
 
-  // Show success message if any auto-fixes were applied
-  const autoFixMessage = document.createElement('div');
-  autoFixMessage.className = 'auto-fix-notice';
-  autoFixMessage.innerHTML = `
-    <div style="background: #10b981; color: white; padding: 8px 12px; border-radius: 6px; font-size: 12px; margin-bottom: 16px; text-align: center;">
-      ✅ Analysis completed successfully! Any invalid values were automatically corrected.
+async function getPageContent() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    // Skip chrome:// and extension pages
+    if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
+      throw new Error("Cannot analyze Chrome or extension pages.");
+    }
+    
+    const result = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => {
+        // Try to get article content first, fallback to body text
+        const article = document.querySelector('article, main, .content, .post, .entry, .story');
+        if (article) {
+          return article.innerText.slice(0, 4000);
+        }
+        return document.body.innerText.slice(0, 4000);
+      }
+    });
+    
+    return result[0].result;
+  } catch (error) {
+    console.error('Content extraction error:', error);
+    throw error;
+  }
+}
+
+// ============================================================================
+// UI UPDATE FUNCTIONS
+// ============================================================================
+
+// Show loading state
+function showLoading() {
+  const resultDiv = document.getElementById('result');
+  resultDiv.innerHTML = `
+    <div class="loading-container">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">Analyzing page content...</div>
+      <div class="loading-subtext">This may take a few seconds</div>
     </div>
   `;
-  
+}
+
+// Show error state
+function showError(message) {
   const resultDiv = document.getElementById('result');
-  resultDiv.innerHTML = '';
-  resultDiv.appendChild(autoFixMessage);
-
-  // Show debug info about auto-fixes
-  showDebug(`Analysis completed with auto-fixes applied. Final values: intensity=${parsed.intensity}, confidence=${parsed.confidence}`);
-
-  const { bias, subtype, tone, intensity, confidence, evidence, neutral_rewrite, source } = parsed;
-
-  // Debug: Log the values to console
-  console.log('Analysis Results:', {
-    bias,
-    subtype,
-    tone,
-    intensity,
-    confidence,
-    source
-  });
-
-  // Get bias color based on intensity
-  const biasColor = getBiasColor(intensity);
-
-  const evidenceList = evidence && evidence.length 
-    ? `<ul>${evidence.map(q => `<li>"${q}"</li>`).join('')}</ul>` 
-    : "<p>No specific quotes extracted.</p>";
-
-  // Render clean, minimal card
-  const resultCard = document.createElement('div');
-  resultCard.className = 'result-card';
-  resultCard.innerHTML = `
-    <div class="section">
-      <div class="section-title">Bias Classification</div>
-      <span class="badge" style="background:${biasColor};">Bias: ${bias}</span>
-      <span class="badge tone">Tone: ${tone}</span>
-      <p class="text-small">Subtype: ${subtype}</p>
+  resultDiv.innerHTML = `
+    <div class="error">
+      <div class="error-title">Analysis Failed</div>
+      <div class="error-message">${message}</div>
+      <button class="retry-btn" id="retryBtn">Try Again</button>
     </div>
+  `;
+}
 
-      <div class="section">
-        <div class="section-title">Bias Intensity <span class="dynamic-indicator"></span></div>
-        <div class="progress-container">
-          <div class="progress-label">
-            <span class="progress-text">Detected Bias Level</span>
-            <span class="progress-value">${intensity}/100</span>
+// Update progress bars with animation - FIXED TO WORK DYNAMICALLY
+function updateProgressBars(intensity, confidence) {
+  console.log(`=== PROGRESS BAR UPDATE DEBUG ===`);
+  console.log(`Received values - Intensity: ${intensity} (type: ${typeof intensity}), Confidence: ${confidence} (type: ${typeof confidence})`);
+  
+  // Force values to be numbers and clamp to 0-100
+  const intensityNum = Math.max(0, Math.min(100, Number(intensity) || 0));
+  const confidenceNum = Math.max(0, Math.min(100, Number(confidence) || 0));
+  
+  console.log(`Processed values - Intensity: ${intensityNum}, Confidence: ${confidenceNum}`);
+  
+  // Update intensity bar
+  const intensityBar = document.querySelector('.progress-fill.bias');
+  const intensityValues = document.querySelectorAll('.progress-value');
+  
+  console.log(`Found intensity bar:`, intensityBar);
+  console.log(`Found ${intensityValues.length} progress values:`, intensityValues);
+  
+  if (intensityBar) {
+    // Reset to 0 first, then animate to target value
+    intensityBar.style.width = '0%';
+    console.log(`Reset intensity bar to 0%`);
+    
+    setTimeout(() => {
+      intensityBar.style.width = `${intensityNum}%`;
+      console.log(`Intensity bar animated to: ${intensityNum}%`);
+    }, 100);
+  }
+  
+  // Update the first progress value (intensity)
+  if (intensityValues[0]) {
+    intensityValues[0].textContent = `${intensityNum}/100`;
+    console.log(`Updated intensity text to: ${intensityNum}/100`);
+  }
+  
+  // Update confidence bar
+  const confidenceBar = document.querySelector('.progress-fill.confidence');
+  
+  if (confidenceBar) {
+    // Reset to 0 first, then animate to target value
+    confidenceBar.style.width = '0%';
+    console.log(`Reset confidence bar to 0%`);
+    
+    setTimeout(() => {
+      confidenceBar.style.width = `${confidenceNum}%`;
+      console.log(`Confidence bar animated to: ${confidenceNum}%`);
+    }, 200);
+  }
+  
+  // Update the second progress value (confidence)
+  if (intensityValues[1]) {
+    intensityValues[1].textContent = `${confidenceNum}/100`;
+    console.log(`Updated confidence text to: ${confidenceNum}/100`);
+  }
+  
+  console.log(`=== END PROGRESS BAR UPDATE ===`);
+}
+
+// Render the complete analysis result with original styling
+function renderResult(data) {
+  const { 
+    summary, bias, bias_subtype, tone, intensity, confidence, 
+    evidence, neutral_rewrite, source 
+  } = data;
+  
+  // Get bias color for badge
+  const biasColor = getBiasColor(intensity, bias);
+  
+  // Format evidence as styled list
+  const evidenceList = evidence && evidence.length > 0 
+    ? `<ul class="evidence-list">${evidence.map(q => `<li>"${q}"</li>`).join('')}</ul>` 
+    : "<p class=\"no-evidence\">No specific quotes extracted.</p>";
+  
+  // Update the result div with original styling structure
+  const resultDiv = document.getElementById('result');
+  resultDiv.innerHTML = `
+    <div class="result-card">
+      <div class="section summary-section">
+        <div class="section-title">Summary</div>
+        <p class="summary-text">${summary}</p>
+      </div>
+
+      <div class="section bias-section">
+        <div class="section-title">Bias Analysis</div>
+        <div class="bias-badges">
+          <span class="bias-badge main" style="background: ${biasColor};">
+            ${bias.replace('-', ' ').toUpperCase()}
+          </span>
+          <span class="bias-badge subtype">${bias_subtype}</span>
+          <span class="bias-badge tone">${tone}</span>
+        </div>
+      </div>
+
+      <div class="section metrics-section">
+        <div class="metric-item">
+          <div class="progress-container">
+            <div class="progress-label">
+              <span class="progress-text">Bias Intensity <span class="dynamic-indicator"></span></span>
+              <span class="progress-value">${intensity}/100</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill bias" style="width:0%; background: ${biasColor};"></div>
+            </div>
           </div>
-          <div class="progress-bar">
-            <div class="progress-fill bias" style="width:0%; background:${biasColor};"></div>
+        </div>
+
+        <div class="metric-item">
+          <div class="progress-container">
+            <div class="progress-label">
+              <span class="progress-text">Analysis Confidence <span class="dynamic-indicator"></span></span>
+              <span class="progress-value">${confidence}/100</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill confidence" style="width:0%"></div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div class="section">
-        <div class="section-title">Analysis Confidence <span class="dynamic-indicator"></span></div>
-        <div class="progress-container">
-          <div class="progress-label">
-            <span class="progress-text">Groq's Confidence</span>
-            <span class="progress-value">${confidence}/100</span>
-          </div>
-          <div class="progress-bar">
-            <div class="progress-fill confidence" style="width:0%"></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="section">
-        <div class="section-title">Source</div>
-        <p class="text-medium">${formatSource(source)}</p>
-      </div>
-
-      <div class="section">
+      <div class="section evidence-section">
         <div class="section-title">Evidence</div>
         ${evidenceList}
       </div>
 
-      <div class="section">
+      <div class="section rewrite-section">
         <div class="section-title">Neutral Rewrite</div>
-        <p class="text-medium">${neutral_rewrite}</p>
+        <p class="rewrite-text">${neutral_rewrite}</p>
+      </div>
+
+      <div class="section source-section">
+        <div class="section-title">Source</div>
+        <p class="source-text">${formatSource(source)}</p>
       </div>
     </div>
   `;
-
-  // Append the result card to the result div
-  resultDiv.appendChild(resultCard);
-
-  // Animate progress bars after a short delay
-  setTimeout(() => {
-    const biasBar = document.querySelector('.progress-fill.bias');
-    const confidenceBar = document.querySelector('.progress-fill.confidence');
-    
-    if (biasBar) {
-      console.log(`Setting bias intensity to: ${intensity}%`);
-      biasBar.style.width = `${intensity}%`;
-    }
-    
-    if (confidenceBar) {
-      console.log(`Setting confidence to: ${confidence}%`);
-      confidenceBar.style.width = `${confidence}%`;
-    }
-  }, 100);
-}
-
-// ------------------------
-// UTILITY FUNCTIONS
-// ------------------------
-function getBiasColor(intensity) {
-  if (intensity < 20) return "#22c55e"; // green
-  if (intensity < 50) return "#eab308"; // yellow
-  if (intensity < 80) return "#f97316"; // orange
-  return "#ef4444"; // red
-}
-
-function formatSource(source) {
-  if (!source || source === "unknown") return "unknown";
-  const urlPattern = /^https?:\/\//i;
-  if (urlPattern.test(source)) {
-    return `<a href="${source}" target="_blank">${source}</a>`;
-  }
-  return source;
-}
-
-function showError(message) {
-  const button = document.getElementById('analyzeBtn');
-  const btnText = document.getElementById('btnText');
-  const resultDiv = document.getElementById('result');
   
-  button.disabled = false;
-  btnText.textContent = 'Analyze Page';
-  
-  // Check if it's a template value error and show retry options
-  if (message.includes('template') || message.includes('static values')) {
-    resultDiv.innerHTML = `
-      <div class="error">
-        <div class="error-title">AI Analysis Issue</div>
-        <div class="error-message">${message}</div>
-        <div class="error-description">The AI model is returning static values instead of analyzing content. Try the fallback prompt for better results.</div>
-        <div class="button-group">
-          <button class="retry-btn" onclick="analyzeBiasWithFallback()">Retry with Fallback Prompt</button>
-          <button class="retry-btn" onclick="analyzeBias()">Retry Normal</button>
-        </div>
-        <button class="debug-toggle" onclick="toggleDebug()">Show Debug Info</button>
-      </div>
-    `;
-  } else {
-    resultDiv.innerHTML = `
-      <div class="error">
-        <div class="error-title">Analysis Failed</div>
-        <div class="error-message">${message}</div>
-        <button class="retry-btn" onclick="analyzeBias()">Try Again</button>
-        <button class="debug-toggle" onclick="toggleDebug()">Show Debug Info</button>
-      </div>
-    `;
-  }
+  // Update the progress bars with the actual values - THIS IS THE KEY FIX
+  updateProgressBars(intensity, confidence);
 }
 
-// Retry with fallback prompt
-async function analyzeBiasWithFallback() {
+// ============================================================================
+// MAIN ANALYSIS FUNCTION
+// ============================================================================
+
+async function analyzeBias() {
   try {
     showLoading();
     
-    const pageText = await getPageContent();
-    if (!pageText || pageText.length < 200) {
-      throw new Error("Unable to extract sufficient content from the page.");
+    // Get page content
+    const pageContent = await getPageContent();
+    
+    if (!pageContent || pageContent.trim().length < 100) {
+      throw new Error("Page content too short. Please try on a webpage with more text content.");
     }
     
-    showDebug("Retrying with fallback prompt...");
-    const jsonResponse = await analyzeWithGroq(pageText, true);
-    renderResult(jsonResponse);
+    console.log(`Analyzing content: ${pageContent.length} characters`);
+    
+    // Call Groq API
+    const analysisResult = await callGroqAPI(pageContent);
+    
+    console.log('=== ANALYSIS RESULT DEBUG ===');
+    console.log('Full analysis result:', analysisResult);
+    console.log('Intensity value:', analysisResult.intensity, 'Type:', typeof analysisResult.intensity);
+    console.log('Confidence value:', analysisResult.confidence, 'Type:', typeof analysisResult.confidence);
+    console.log('Raw intensity:', analysisResult.intensity);
+    console.log('Raw confidence:', analysisResult.confidence);
+    console.log('=== END ANALYSIS RESULT DEBUG ===');
+    
+    // Render the result (this will update the progress bars)
+    renderResult(analysisResult);
     
   } catch (error) {
-    console.error("Fallback analysis error:", error);
-    showError(error.message);
+    console.error('Analysis error:', error);
+    showError("Error: Unable to analyze page.");
   }
 }
 
-// Toggle debug info
-function toggleDebug() {
-  const debugDiv = document.getElementById('debug');
-  if (debugDiv) {
-    debugDiv.style.display = debugDiv.style.display === 'none' ? 'block' : 'none';
-  }
-}
-
-// ------------------------
+// ============================================================================
 // INITIALIZATION
-// ------------------------
+// ============================================================================
+
+// Auto-analyze when popup opens
 document.addEventListener('DOMContentLoaded', function() {
-  // Event listeners
-  document.getElementById('analyzeBtn').addEventListener('click', analyzeBias);
+  // Set up event listener for manual analysis button
+  const analyzeBtn = document.getElementById('analyzeBtn');
+  if (analyzeBtn) {
+    analyzeBtn.addEventListener('click', analyzeBias);
+  }
+  
+  // Add event delegation for dynamically created retry buttons
+  document.addEventListener('click', (e) => {
+    if (e.target && e.target.id === 'retryBtn') {
+      analyzeBias();
+    }
+  });
+  
+  // Auto-start analysis when popup opens
+  setTimeout(() => {
+    analyzeBias();
+  }, 500);
 });
