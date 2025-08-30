@@ -2,6 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self'; object-src 'none';">
   <title>TruSight Bias Detection</title>
   <style>
     * {
@@ -99,6 +100,12 @@
       color: #888;
       font-size: 14px;
       font-weight: 400;
+    }
+
+    .loading-subtext {
+      color: #666;
+      font-size: 12px;
+      margin-top: 8px;
     }
 
     /* Minimal result card */
@@ -357,6 +364,106 @@
     .text-small {
       font-size: 12px;
       color: #888;
+    }
+
+    /* New styles for the updated structure */
+    .summary-section, .bias-section, .metrics-section, .evidence-section, .rewrite-section, .source-section {
+      margin: 24px 0;
+    }
+
+    .summary-section:first-child {
+      margin-top: 0;
+    }
+
+    .source-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .bias-badges {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: 12px 0;
+    }
+
+    .bias-badge {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 500;
+      color: #ffffff;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .bias-badge.main {
+      background: #e63946;
+    }
+
+    .bias-badge.subtype {
+      background: #6b7280;
+    }
+
+    .bias-badge.tone {
+      background: #8b5cf6;
+    }
+
+    .metric-item {
+      margin-bottom: 20px;
+    }
+
+    .metric-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .metric-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .metric-title {
+      font-weight: 600;
+      color: #888;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .metric-value {
+      font-weight: 500;
+      color: #ffffff;
+      font-size: 13px;
+    }
+
+    .evidence-list {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    .evidence-list li {
+      margin-bottom: 8px;
+      color: #e5e7eb;
+      line-height: 1.5;
+      font-style: italic;
+    }
+
+    .no-evidence {
+      color: #9ca3af;
+      font-style: italic;
+    }
+
+    .summary-text, .rewrite-text, .source-text {
+      color: #e5e7eb;
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    .summary-text {
+      font-size: 14px;
+      color: #f3f4f6;
     }
   </style>
 </head>
