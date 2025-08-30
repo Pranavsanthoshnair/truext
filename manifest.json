@@ -1,12 +1,15 @@
 {
   "manifest_version": 3,
-  "name": "Bias Detector",
-  "version": "1.0",
-  "description": "Detect bias in articles using the Grok API.",
+  "name": "TruSight - Bias Detection",
+  "version": "1.2",
+  "description": "Detect bias in news articles with integrated website summary using AI analysis.",
   "permissions": ["activeTab", "scripting"],
   "host_permissions": ["<all_urls>"],
   "action": {
     "default_popup": "popup.html",
     "default_icon": "icon128.png"
+  },
+  "icons": {
+    "128": "icon128.png"
   }
 }
