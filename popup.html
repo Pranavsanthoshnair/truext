@@ -296,6 +296,21 @@
       background: #4b5563;
     }
 
+    .auto-fix-notice {
+      animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
     /* Clean debug info */
     .debug-info {
       background: #2a2a2a;
